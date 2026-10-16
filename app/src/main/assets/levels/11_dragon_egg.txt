@@ -1,11 +1,13 @@
 Dragon Egg
-...####...
-..######..
-.########.
-.###.####.
-####.#####
-#####.####
-.####.###.
-.########.
-..######..
-...####...
+L=#4DB6AC
+D=#00897B
+...LLLL...
+..LLLLLL..
+.LLLLLLLL.
+.LLL.LLLL.
+LLLL.LLLLL
+DDDDD.DDDD
+.DDDD.DDD.
+.DDDDDDDD.
+..DDDDDD..
+...DDDD...

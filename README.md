@@ -5,8 +5,11 @@ Simple Android picross (nonogram) game.
 **[Download the latest APK](https://github.com/meltingscales/DrakonixPicrossAndroid/releases/latest)**
 from the releases page and sideload it. Google Play listing coming soon.
 
-<img src="screenshots/20261016-125950.png" alt="Level list" width="270">
-<img src="screenshots/20261016-130038.png" alt="Gallery" width="270">
+<img src="screenshots/20261016-125950.png" alt="Level list" width="240">
+<img src="screenshots/play/gallery-1.png" alt="Gallery, levels 1-18" width="240">
+<img src="screenshots/play/gallery-2.png" alt="Gallery, levels 25-44" width="240">
+
+Play Store screenshots (1080×2160) live in [`screenshots/play/`](screenshots/play/).
 
 - 44 levels (6 at 5×5, 31 at 10×10, 7 at 15×15) — dragons, furries, and
   cute critters; pinch to zoom, two fingers to pan
