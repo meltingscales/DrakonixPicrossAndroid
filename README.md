@@ -1,6 +1,6 @@
 # Drakonix Picross
 
-Simple Android picross (nonogram) game.
+Simple Android picross (nonogram) game. No ads, no BS. Just a fun puzzle game.
 
 **[Download the latest APK](https://github.com/meltingscales/DrakonixPicrossAndroid/releases/latest)**
 from the releases page and sideload it. Google Play listing coming soon.
