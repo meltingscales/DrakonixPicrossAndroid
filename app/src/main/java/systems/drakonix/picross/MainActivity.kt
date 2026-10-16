@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
 import android.view.View
 import android.widget.Button
 import android.widget.GridLayout
@@ -29,6 +31,7 @@ class MainActivity : Activity() {
                 .setMessage(R.string.help_text)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNeutralButton(R.string.tutorial) { _, _ -> startTutorial() }
+                .setNegativeButton(R.string.credits) { _, _ -> showCredits() }
                 .show()
         }
         if (Settings.shouldOfferTutorial(this)) {
@@ -44,6 +47,20 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         populate()
+    }
+
+    private fun showCredits() {
+        val version = packageManager.getPackageInfo(packageName, 0).versionName
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.credits)
+            .setMessage(getString(R.string.credits_text, version))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+        // Make the URLs tappable; they open in the browser, so no internet permission is needed.
+        dialog.findViewById<TextView>(android.R.id.message)?.let {
+            Linkify.addLinks(it, Linkify.WEB_URLS)
+            it.movementMethod = LinkMovementMethod.getInstance()
+        }
     }
 
     private fun startTutorial() {

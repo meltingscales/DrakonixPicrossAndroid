@@ -54,4 +54,6 @@
     <string name="tut_7">On big puzzles, pinch to zoom and drag with two fingers (or the Pan tool) to move. Clues stick to the edges so you can always read them. Reset view zooms back out.</string>
     <string name="tut_8">Row 5 says 1. Column 3 needs 4 in a row and its top is marked, so its run must reach the bottom. Fill that cell to finish!</string>
     <string name="tut_9">Solved! Finished pictures are revealed in color and saved to your Gallery. Your turn.</string>
+    <string name="credits">Credits</string>
+    <string name="credits_text">Drakonix Picross %1$s\n\nMade by meltingscales (Drakonix Systems), built with Claude.\n\nWebsite:\nhttps://drakonix.systems\n\nSource code:\nhttps://github.com/meltingscales/DrakonixPicrossAndroid\n\nFree, no ads, no tracking.</string>
 </resources>
