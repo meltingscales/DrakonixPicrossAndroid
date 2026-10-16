@@ -100,6 +100,7 @@ class PicrossView @JvmOverloads constructor(
     private val fillPaint = Paint()
     private val revealPaint = Paint()
     private val fixedPaint = Paint()
+    private val settledPaint = Paint().apply { isAntiAlias = true }
     private val markPaint = Paint().apply {
         strokeWidth = 4f
         strokeCap = Paint.Cap.ROUND
@@ -143,6 +144,7 @@ class PicrossView @JvmOverloads constructor(
         blockPaint.color = p.fg.withAlpha(0.55f)
         fillPaint.color = p.fg
         fixedPaint.color = p.accent.withAlpha(0.22f)
+        settledPaint.color = p.fg.withAlpha(0.3f)
         markPaint.color = p.accent
         cluePaint.color = p.fg
         clueDonePaint.color = p.fg.withAlpha(0.35f)
@@ -364,10 +366,16 @@ class PicrossView @JvmOverloads constructor(
                 canvas.drawRect(originX + cursorC * cell, originY, originX + (cursorC + 1) * cell, originY + l.rows * cell, cursorLinePaint)
             }
         }
+        val solvedRows = BooleanArray(l.rows) { rowSolved(it) }
+        val solvedCols = BooleanArray(l.cols) { colSolved(it) }
         for (r in 0 until l.rows) for (c in 0 until l.cols) {
             val left = originX + c * cell
             val top = originY + r * cell
             if (fixed[r][c]) canvas.drawRect(left, top, left + cell, top + cell, fixedPaint)
+            if (state[r][c] == EMPTY && !locked && (solvedRows[r] || solvedCols[c])) {
+                // Settled: this empty cell is in a finished line.
+                canvas.drawCircle(left + cell / 2, top + cell / 2, cell * 0.07f, settledPaint)
+            }
             when (state[r][c]) {
                 FILLED -> {
                     // Picture colors stay hidden until solved; they'd give the answer away.
@@ -562,8 +570,22 @@ class PicrossView @JvmOverloads constructor(
         invalidate()
     }
 
+    /** A line is solved when its filled cells match the solution exactly. */
+    private fun rowSolved(r: Int): Boolean {
+        val l = level ?: return false
+        return (0 until l.cols).all { c -> (state[r][c] == FILLED) == l.solution[r][c] }
+    }
+
+    private fun colSolved(c: Int): Boolean {
+        val l = level ?: return false
+        return (0 until l.rows).all { r -> (state[r][c] == FILLED) == l.solution[r][c] }
+    }
+
     private fun applyPaint(r: Int, c: Int) {
         if (fixed[r][c] || state[r][c] != paintFrom || state[r][c] == paintTo) return
+        // Solved lines keep their filled cells; marks are notes and stay editable.
+        val changesFill = paintTo == FILLED || state[r][c] == FILLED
+        if (changesFill && (rowSolved(r) || colSolved(c))) return
         val l = level!!
         val wrong = maxLives > 0 && paintTo != EMPTY && (paintTo == FILLED) != l.solution[r][c]
         if (wrong) {
