@@ -52,13 +52,28 @@ class GameActivity : Activity() {
         }
         fun selectTool(tool: PicrossView.Tool) {
             board.tool = tool
-            toggles.forEach { (t, button) -> button.isChecked = t == tool }
+            toggles.forEach { (t, button) ->
+                val selected = t == tool
+                button.isChecked = selected
+                button.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                    if (selected) palette.accent else buttonTint
+                )
+                button.setTextColor(if (selected) palette.bg else palette.fg)
+            }
         }
         toggles.forEach { (tool, button) -> button.setOnClickListener { selectTool(tool) } }
         selectTool(PicrossView.Tool.FILL)
 
         resetView.setOnClickListener { board.resetView() }
-        clear.setOnClickListener { board.reset() }
+        clear.setOnClickListener {
+            if (!board.hasProgress()) return@setOnClickListener
+            AlertDialog.Builder(this)
+                .setTitle(R.string.clear_title)
+                .setMessage(R.string.clear_message)
+                .setPositiveButton(R.string.reset) { _, _ -> board.reset() }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
 
         board.onSolved = {
             solved = true

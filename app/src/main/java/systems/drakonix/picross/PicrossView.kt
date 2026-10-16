@@ -72,7 +72,17 @@ class PicrossView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
     private val clueDonePaint = Paint(cluePaint)
+    private val clueCursorPaint = Paint(cluePaint).apply { isFakeBoldText = true }
     private val bgPaint = Paint()
+    private val cursorLinePaint = Paint()
+    private val cursorCellPaint = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+    }
+
+    // Cell under the painting finger, or -1 when not touching.
+    private var cursorR = -1
+    private var cursorC = -1
 
     init {
         setPalette(Themes.all[0])
@@ -86,6 +96,9 @@ class PicrossView @JvmOverloads constructor(
         markPaint.color = p.accent
         cluePaint.color = p.fg
         clueDonePaint.color = p.fg.withAlpha(0.35f)
+        clueCursorPaint.color = p.accent
+        cursorLinePaint.color = p.accent.withAlpha(0.18f)
+        cursorCellPaint.color = p.accent
         invalidate()
     }
 
@@ -163,6 +176,11 @@ class PicrossView @JvmOverloads constructor(
         canvas.scale(zoom, zoom)
         drawCells(canvas, l)
         drawGrid(canvas, l)
+        if (cursorR >= 0) {
+            val left = originX + cursorC * cell
+            val top = originY + cursorR * cell
+            canvas.drawRect(left, top, left + cell, top + cell, cursorCellPaint)
+        }
         canvas.restore()
 
         drawClues(canvas, l)
@@ -184,27 +202,36 @@ class PicrossView @JvmOverloads constructor(
         val g = layout()
         cluePaint.textSize = g.cs * 0.55f
         clueDonePaint.textSize = cluePaint.textSize
+        clueCursorPaint.textSize = cluePaint.textSize
         val textOffset = g.cs * 0.68f
 
         canvas.drawRect(0f, 0f, g.rowBandRight, height.toFloat(), bgPaint)
         for (r in 0 until l.rows) {
             val clues = l.rowClues[r]
-            val done = clues == currentRowClues(r)
+            val paint = when {
+                r == cursorR -> clueCursorPaint
+                clues == currentRowClues(r) -> clueDonePaint
+                else -> cluePaint
+            }
             clues.forEachIndexed { i, n ->
                 val x = g.rowBandRight - (clues.size - i - 0.5f) * g.cs
                 val y = g.gy + r * g.cs + textOffset
-                canvas.drawText(n.toString(), x, y, if (done) clueDonePaint else cluePaint)
+                canvas.drawText(n.toString(), x, y, paint)
             }
         }
 
         canvas.drawRect(0f, 0f, width.toFloat(), g.colBandBottom, bgPaint)
         for (c in 0 until l.cols) {
             val clues = l.colClues[c]
-            val done = clues == currentColClues(c)
+            val paint = when {
+                c == cursorC -> clueCursorPaint
+                clues == currentColClues(c) -> clueDonePaint
+                else -> cluePaint
+            }
             clues.forEachIndexed { i, n ->
                 val x = g.gx + c * g.cs + g.cs / 2
                 val y = g.colBandBottom - (clues.size - i) * g.cs + textOffset
-                canvas.drawText(n.toString(), x, y, if (done) clueDonePaint else cluePaint)
+                canvas.drawText(n.toString(), x, y, paint)
             }
         }
 
@@ -219,6 +246,10 @@ class PicrossView @JvmOverloads constructor(
     }
 
     private fun drawCells(canvas: Canvas, l: Level) {
+        if (cursorR >= 0) {
+            canvas.drawRect(originX, originY + cursorR * cell, originX + l.cols * cell, originY + (cursorR + 1) * cell, cursorLinePaint)
+            canvas.drawRect(originX + cursorC * cell, originY, originX + (cursorC + 1) * cell, originY + l.rows * cell, cursorLinePaint)
+        }
         for (r in 0 until l.rows) for (c in 0 until l.cols) {
             val left = originX + c * cell
             val top = originY + r * cell
@@ -313,10 +344,12 @@ class PicrossView @JvmOverloads constructor(
                     Tool.MARK -> if (paintFrom == MARKED) EMPTY else MARKED
                     Tool.PAN -> return true
                 }
+                moveCursor(r, c)
                 applyPaint(r, c)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 painting = false
+                moveCursor(-1, -1)
                 val (mx, my) = midOf(event)
                 panLastX = mx
                 panLastY = my
@@ -331,7 +364,10 @@ class PicrossView @JvmOverloads constructor(
                     clampPan()
                     invalidate()
                 } else if (painting) {
-                    cellAt(event.x, event.y)?.let { (r, c) -> applyPaint(r, c) }
+                    cellAt(event.x, event.y)?.let { (r, c) ->
+                        moveCursor(r, c)
+                        applyPaint(r, c)
+                    }
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {
@@ -339,9 +375,19 @@ class PicrossView @JvmOverloads constructor(
                 panLastX = mx
                 panLastY = my
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> painting = false
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                painting = false
+                moveCursor(-1, -1)
+            }
         }
         return true
+    }
+
+    private fun moveCursor(r: Int, c: Int) {
+        if (r == cursorR && c == cursorC) return
+        cursorR = r
+        cursorC = c
+        invalidate()
     }
 
     private fun applyPaint(r: Int, c: Int) {
@@ -351,6 +397,7 @@ class PicrossView @JvmOverloads constructor(
         if (isSolved()) {
             locked = true
             painting = false
+            moveCursor(-1, -1)
             onSolved?.invoke()
         }
     }
