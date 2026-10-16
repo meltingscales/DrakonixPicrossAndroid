@@ -40,6 +40,26 @@
             android:textOff="@string/tool_mark"
             android:textOn="@string/tool_mark" />
 
+        <ToggleButton
+            android:id="@+id/toolPan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textOff="@string/tool_pan"
+            android:textOn="@string/tool_pan" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/resetViewButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/reset_view" />
+
         <Button
             android:id="@+id/resetButton"
             android:layout_width="wrap_content"

@@ -39,25 +39,26 @@ class GameActivity : Activity() {
         prefs.getString(MainActivity.progressKey(level), null)?.let { board.importState(it) }
 
         val buttonTint = palette.bg.blendToward(palette.fg, 0.12f)
-        val fillToggle = findViewById<ToggleButton>(R.id.toolFill)
-        val markToggle = findViewById<ToggleButton>(R.id.toolMark)
-        listOf<TextView>(fillToggle, markToggle, findViewById(R.id.resetButton)).forEach {
+        val toggles = mapOf(
+            PicrossView.Tool.FILL to findViewById<ToggleButton>(R.id.toolFill),
+            PicrossView.Tool.MARK to findViewById<ToggleButton>(R.id.toolMark),
+            PicrossView.Tool.PAN to findViewById<ToggleButton>(R.id.toolPan),
+        )
+        val resetView = findViewById<Button>(R.id.resetViewButton)
+        val clear = findViewById<Button>(R.id.resetButton)
+        (toggles.values + resetView + clear).forEach<TextView> {
             it.backgroundTintList = android.content.res.ColorStateList.valueOf(buttonTint)
             it.setTextColor(palette.fg)
         }
-        fillToggle.isChecked = true
-        fillToggle.setOnClickListener {
-            board.tool = PicrossView.Tool.FILL
-            fillToggle.isChecked = true
-            markToggle.isChecked = false
+        fun selectTool(tool: PicrossView.Tool) {
+            board.tool = tool
+            toggles.forEach { (t, button) -> button.isChecked = t == tool }
         }
-        markToggle.setOnClickListener {
-            board.tool = PicrossView.Tool.MARK
-            markToggle.isChecked = true
-            fillToggle.isChecked = false
-        }
+        toggles.forEach { (tool, button) -> button.setOnClickListener { selectTool(tool) } }
+        selectTool(PicrossView.Tool.FILL)
 
-        findViewById<Button>(R.id.resetButton).setOnClickListener { board.reset() }
+        resetView.setOnClickListener { board.resetView() }
+        clear.setOnClickListener { board.reset() }
 
         board.onSolved = {
             solved = true

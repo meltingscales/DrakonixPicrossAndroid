@@ -7,6 +7,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import kotlin.math.max
 import kotlin.math.min
 
 class PicrossView @JvmOverloads constructor(
@@ -14,7 +15,7 @@ class PicrossView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {
 
-    enum class Tool { FILL, MARK }
+    enum class Tool { FILL, MARK, PAN }
 
     companion object {
         const val EMPTY = 0
@@ -71,12 +72,14 @@ class PicrossView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
     private val clueDonePaint = Paint(cluePaint)
+    private val bgPaint = Paint()
 
     init {
         setPalette(Themes.all[0])
     }
 
     fun setPalette(p: Palette) {
+        bgPaint.color = p.bg
         gridPaint.color = p.fg.withAlpha(0.25f)
         blockPaint.color = p.fg.withAlpha(0.55f)
         fillPaint.color = p.fg
@@ -113,6 +116,11 @@ class PicrossView @JvmOverloads constructor(
         panY = 0f
     }
 
+    fun resetView() {
+        resetViewport()
+        invalidate()
+    }
+
     private fun clampPan() {
         panX = panX.coerceIn(width * (1 - zoom), 0f)
         panY = panY.coerceIn(height * (1 - zoom), 0f)
@@ -140,9 +148,6 @@ class PicrossView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         val l = level ?: return
-        canvas.save()
-        canvas.translate(panX, panY)
-        canvas.scale(zoom, zoom)
         val clueCols = maxRowClueLen()
         val clueRows = maxColClueLen()
         val totalCols = l.cols + clueCols
@@ -152,34 +157,64 @@ class PicrossView @JvmOverloads constructor(
         val boardH = cell * totalRows
         originX = (width - boardW) / 2 + clueCols * cell
         originY = (height - boardH) / 2 + clueRows * cell
-        cluePaint.textSize = cell * 0.55f
-        clueDonePaint.textSize = cluePaint.textSize
 
-        drawClues(canvas, l)
+        canvas.save()
+        canvas.translate(panX, panY)
+        canvas.scale(zoom, zoom)
         drawCells(canvas, l)
         drawGrid(canvas, l)
         canvas.restore()
+
+        drawClues(canvas, l)
     }
 
+    /** Screen-space grid geometry: cell size, grid top-left, and clue band edges. */
+    private class Layout(val cs: Float, val gx: Float, val gy: Float, val rowBandRight: Float, val colBandBottom: Float)
+
+    private fun layout(): Layout {
+        val cs = cell * zoom
+        val gx = panX + originX * zoom
+        val gy = panY + originY * zoom
+        // Clue bands follow the grid but stick to the view edge once scrolled past it.
+        return Layout(cs, gx, gy, max(gx, maxRowClueLen() * cs), max(gy, maxColClueLen() * cs))
+    }
+
+    /** Drawn in screen space, over the cells, so pinned clues stay readable while zoomed. */
     private fun drawClues(canvas: Canvas, l: Level) {
-        val textOffset = cell * 0.68f
+        val g = layout()
+        cluePaint.textSize = g.cs * 0.55f
+        clueDonePaint.textSize = cluePaint.textSize
+        val textOffset = g.cs * 0.68f
+
+        canvas.drawRect(0f, 0f, g.rowBandRight, height.toFloat(), bgPaint)
         for (r in 0 until l.rows) {
             val clues = l.rowClues[r]
             val done = clues == currentRowClues(r)
             clues.forEachIndexed { i, n ->
-                val x = originX - (clues.size - i - 0.5f) * cell
-                val y = originY + r * cell + textOffset
+                val x = g.rowBandRight - (clues.size - i - 0.5f) * g.cs
+                val y = g.gy + r * g.cs + textOffset
                 canvas.drawText(n.toString(), x, y, if (done) clueDonePaint else cluePaint)
             }
         }
+
+        canvas.drawRect(0f, 0f, width.toFloat(), g.colBandBottom, bgPaint)
         for (c in 0 until l.cols) {
             val clues = l.colClues[c]
             val done = clues == currentColClues(c)
             clues.forEachIndexed { i, n ->
-                val x = originX + c * cell + cell / 2
-                val y = originY - (clues.size - i - 1) * cell - cell + textOffset
+                val x = g.gx + c * g.cs + g.cs / 2
+                val y = g.colBandBottom - (clues.size - i) * g.cs + textOffset
                 canvas.drawText(n.toString(), x, y, if (done) clueDonePaint else cluePaint)
             }
+        }
+
+        // Corner where the bands overlap hides clues scrolled under both.
+        canvas.drawRect(0f, 0f, g.rowBandRight, g.colBandBottom, bgPaint)
+        if (g.rowBandRight > g.gx) {
+            canvas.drawLine(g.rowBandRight, g.colBandBottom, g.rowBandRight, height.toFloat(), blockPaint)
+        }
+        if (g.colBandBottom > g.gy) {
+            canvas.drawLine(g.rowBandRight, g.colBandBottom, width.toFloat(), g.colBandBottom, blockPaint)
         }
     }
 
@@ -238,6 +273,8 @@ class PicrossView @JvmOverloads constructor(
     /** Row/col under a screen point, through the zoom/pan transform; null if off-board. */
     private fun cellAt(x: Float, y: Float): Pair<Int, Int>? {
         val l = level ?: return null
+        val g = layout()
+        if (x < g.rowBandRight || y < g.colBandBottom) return null // under pinned clues
         val bx = (x - panX) / zoom
         val by = (y - panY) / zoom
         if (bx < originX || by < originY) return null
@@ -265,12 +302,16 @@ class PicrossView @JvmOverloads constructor(
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                panLastX = event.x
+                panLastY = event.y
+                if (tool == Tool.PAN) return true
                 val (r, c) = cellAt(event.x, event.y) ?: return true
                 painting = true
                 paintFrom = state[r][c]
                 paintTo = when (tool) {
                     Tool.FILL -> if (paintFrom == FILLED) EMPTY else FILLED
                     Tool.MARK -> if (paintFrom == MARKED) EMPTY else MARKED
+                    Tool.PAN -> return true
                 }
                 applyPaint(r, c)
             }
@@ -281,7 +322,7 @@ class PicrossView @JvmOverloads constructor(
                 panLastY = my
             }
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount >= 2) {
+                if (event.pointerCount >= 2 || tool == Tool.PAN) {
                     val (mx, my) = midOf(event)
                     panX += mx - panLastX
                     panY += my - panLastY

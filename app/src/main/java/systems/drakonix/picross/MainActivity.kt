@@ -23,6 +23,13 @@ class MainActivity : Activity() {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
         findViewById<Button>(R.id.themeButton).setOnClickListener { pickTheme() }
+        findViewById<Button>(R.id.helpButton).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.help_title)
+                .setMessage(R.string.help_text)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
     }
 
     override fun onResume() {
@@ -52,6 +59,7 @@ class MainActivity : Activity() {
         val plainTint = palette.bg.blendToward(palette.fg, 0.12f)
         findViewById<Button>(R.id.galleryButton).stylize(plainTint, palette.fg)
         findViewById<Button>(R.id.themeButton).stylize(plainTint, palette.fg)
+        findViewById<Button>(R.id.helpButton).stylize(plainTint, palette.fg)
 
         grid.removeAllViews()
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)

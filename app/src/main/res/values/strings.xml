@@ -13,7 +13,12 @@
     <string name="game_title">Level %1$d — %2$s</string>
     <string name="tool_fill">Fill</string>
     <string name="tool_mark">Mark ✕</string>
-    <string name="reset">Reset</string>
+    <string name="tool_pan">Pan</string>
+    <string name="reset">Clear</string>
+    <string name="reset_view">Reset view</string>
+    <string name="help">Help</string>
+    <string name="help_title">How to play</string>
+    <string name="help_text">Fill in cells to reveal a hidden picture.\n\nCLUES\nThe numbers beside each row and above each column are the lengths of the filled runs in that line, in order. \"3 1\" means a run of 3, at least one gap, then a run of 1. A 0 means the line is empty. Clues fade once their line matches.\n\nTOOLS\n• Fill: tap or drag to fill cells. Start on a filled cell to erase instead.\n• Mark ✕: flag cells you know are empty. Marks are just notes.\n• Pan: drag with one finger to move the zoomed board.\n\nZOOM\nPinch to zoom; drag with two fingers to pan. Clues stick to the edges while zoomed so you can always read them. Reset view goes back to the whole puzzle.\n\nTIPS\n• Start with big clues: a 7 in a 10-wide line always fills the middle 4 cells.\n• Lines whose clues plus gaps add up to the full width are fully determined.\n• Mark empties as you go; they make the remaining lines easier.\n\nProgress saves automatically when you leave a puzzle. Clear wipes the board. Solved pictures appear in the Gallery, in color.</string>
     <string name="solved_title">Solved!</string>
     <string name="solved_message">You revealed: %1$s</string>
     <string name="solved_back">Back to levels</string>
