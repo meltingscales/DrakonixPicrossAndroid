@@ -30,6 +30,10 @@ uninstall:
 gallery:
     python3 tools/gallery.py
 
+# Check every level's clues have exactly one solution (lives mode depends on it)
+check-levels:
+    python3 tools/check_levels.py
+
 # Remove build outputs
 clean:
     ./gradlew clean

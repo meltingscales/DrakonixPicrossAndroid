@@ -1,12 +1,12 @@
 Bone
-B=#BCAAA4
+B=#EFEBE9
+..........
 .BB....BB.
 BBBB..BBBB
-BBBB..BBBB
+BBBBBBBBBB
 .BBBBBBBB.
-...BBBB...
-...BBBB...
 .BBBBBBBB.
-BBBB..BBBB
+BBBBBBBBBB
 BBBB..BBBB
 .BB....BB.
+..........
