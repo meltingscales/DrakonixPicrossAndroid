@@ -19,8 +19,10 @@ on:
   push:
     tags: ["v*"]
 
+# One build job produces the signed artifacts; the GitHub release and the
+# Play upload run as separate jobs so a failure in one doesn't block the other.
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +51,25 @@ jobs:
         run: |
           export VERSION_NAME="${VERSION_NAME#v}"
           ./gradlew bundleRelease assembleRelease
+          mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk \
-             "drakonix-picross-${VERSION_NAME}.apk"
+             "dist/drakonix-picross-${VERSION_NAME}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
 
       - name: Create GitHub release with APK
         uses: softprops/action-gh-release@v2
@@ -58,11 +77,19 @@ jobs:
           files: drakonix-picross-*.apk
           generate_release_notes: true
 
+  play-store:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+
       - name: Upload to Play internal track
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: systems.drakonix.picross
-          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          releaseFiles: app-release.aab
           track: internal
           status: completed
