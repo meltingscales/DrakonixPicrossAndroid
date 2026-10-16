@@ -5,7 +5,7 @@ Simple Android picross (nonogram) game.
 **[Download the latest APK](https://github.com/meltingscales/DrakonixPicrossAndroid/releases/latest)**
 from the releases page and sideload it. Google Play listing coming soon.
 
-<img src="screenshots/20261016-125950.png" alt="Level list" width="240">
+<img src="screenshots/play/level-list.png" alt="Level list" width="240">
 <img src="screenshots/play/gallery-1.png" alt="Gallery, levels 1-18" width="240">
 <img src="screenshots/play/gallery-2.png" alt="Gallery, levels 25-44" width="240">
 
