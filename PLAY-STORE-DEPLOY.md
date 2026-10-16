@@ -163,6 +163,45 @@ All under **Monitor and improve → Policy → App content**:
 
 That's it: no keystore juggling after setup, Google handles re-signing.
 
+## 10. CI/CD: auto-release from GitHub (optional)
+
+`.github/workflows/release.yml` builds a signed bundle and uploads it to the
+Play **internal** track whenever a `v*` tag is pushed:
+
+```sh
+git tag v1.1 && git push origin v1.1
+```
+
+`versionCode` comes from the workflow run number (always increases);
+`versionName` from the tag. Local builds use `1` / `1.0-dev`.
+
+Setup:
+
+1. **Keystore secrets** (run locally, never paste values into a terminal
+   that logs):
+
+   ```sh
+   base64 -w0 ~/keystores/drakonix-picross-upload.jks | gh secret set KEYSTORE_BASE64
+   grep '^storePassword=' keystore.properties | cut -d= -f2- | tr -d '\n' | gh secret set KEYSTORE_PASSWORD
+   grep '^keyPassword='   keystore.properties | cut -d= -f2- | tr -d '\n' | gh secret set KEY_PASSWORD
+   ```
+
+2. **Play service account**:
+   - In [Google Cloud Console](https://console.cloud.google.com): create a
+     project (or reuse one) → enable the **Google Play Android Developer
+     API** → IAM → Service Accounts → create one (no roles needed) →
+     Keys → add JSON key, download it.
+   - In Play Console → **Users and permissions** → invite the service
+     account's email → grant app access to Drakonix Picross with
+     **Release to testing tracks** (add "Release to production" only if
+     you later switch the workflow's track).
+   - `gh secret set PLAY_SERVICE_ACCOUNT_JSON < service-account.json`
+     then delete the local JSON file.
+
+3. **Bootstrap**: Google's API refuses apps it has never seen — the first
+   bundle must be uploaded by hand in Play Console (step 8). Every release
+   after that is just a tag push.
+
 ## Gotchas worth knowing
 
 - **Keystore loss**: upload key can be reset via support; losing the

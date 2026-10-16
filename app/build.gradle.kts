@@ -19,8 +19,9 @@ android {
         applicationId = "com.drakonix.picross"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI sets these from the release tag; local builds use the fallbacks.
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("VERSION_NAME") ?: "1.0-dev"
     }
 
     signingConfigs {

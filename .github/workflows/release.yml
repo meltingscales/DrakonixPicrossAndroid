@@ -1,0 +1,57 @@
+name: Release to Play Store
+
+# Push a tag like v1.2 to build a signed bundle and upload it to the
+# Play internal track. Promote to production in Play Console (or change
+# `track` below once the account is past Google's closed-testing gate).
+#
+# NOTE: the very first bundle must be uploaded by hand in Play Console —
+# the publishing API only works for apps that already exist there.
+#
+# Required repo secrets:
+#   KEYSTORE_BASE64            base64 of the upload keystore (.jks)
+#   KEYSTORE_PASSWORD          store password
+#   KEY_PASSWORD               key password
+#   PLAY_SERVICE_ACCOUNT_JSON  Google Cloud service account key with
+#                              Play "Release to testing tracks" permission
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore upload keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/upload.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=upload
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Build signed bundle
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ github.ref_name }}
+        run: VERSION_NAME="${VERSION_NAME#v}" ./gradlew bundleRelease
+
+      - name: Upload to Play internal track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.drakonix.picross
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
