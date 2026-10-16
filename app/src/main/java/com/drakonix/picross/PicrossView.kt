@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import kotlin.math.min
 
@@ -33,6 +34,29 @@ class PicrossView @JvmOverloads constructor(
     private var paintFrom = EMPTY
     private var paintTo = EMPTY
     private var painting = false
+
+    // Zoom (pinch) and pan (two-finger drag). One finger always paints.
+    private var zoom = 1f
+    private var panX = 0f
+    private var panY = 0f
+    private var panLastX = 0f
+    private var panLastY = 0f
+
+    private val scaleDetector = ScaleGestureDetector(
+        context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: ScaleGestureDetector): Boolean {
+                val old = zoom
+                zoom = (zoom * d.scaleFactor).coerceIn(1f, 4f)
+                // Keep the pinch focus stationary while zooming.
+                panX = d.focusX - (d.focusX - panX) * (zoom / old)
+                panY = d.focusY - (d.focusY - panY) * (zoom / old)
+                clampPan()
+                invalidate()
+                return true
+            }
+        }
+    )
 
     private val gridPaint = Paint().apply { strokeWidth = 2f }
     private val blockPaint = Paint().apply { strokeWidth = 5f }
@@ -70,6 +94,7 @@ class PicrossView @JvmOverloads constructor(
         this.level = level
         state = Array(level.rows) { IntArray(level.cols) }
         locked = false
+        resetViewport()
         invalidate()
     }
 
@@ -77,7 +102,19 @@ class PicrossView @JvmOverloads constructor(
         val l = level ?: return
         state = Array(l.rows) { IntArray(l.cols) }
         locked = false
+        resetViewport()
         invalidate()
+    }
+
+    private fun resetViewport() {
+        zoom = 1f
+        panX = 0f
+        panY = 0f
+    }
+
+    private fun clampPan() {
+        panX = panX.coerceIn(width * (1 - zoom), 0f)
+        panY = panY.coerceIn(height * (1 - zoom), 0f)
     }
 
     /** Board state as one char per cell ('0' empty, '1' filled, '2' marked), row-major. */
@@ -102,6 +139,9 @@ class PicrossView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         val l = level ?: return
+        canvas.save()
+        canvas.translate(panX, panY)
+        canvas.scale(zoom, zoom)
         val clueCols = maxRowClueLen()
         val clueRows = maxColClueLen()
         val totalCols = l.cols + clueCols
@@ -117,6 +157,7 @@ class PicrossView @JvmOverloads constructor(
         drawClues(canvas, l)
         drawCells(canvas, l)
         drawGrid(canvas, l)
+        canvas.restore()
     }
 
     private fun drawClues(canvas: Canvas, l: Level) {
@@ -187,16 +228,37 @@ class PicrossView @JvmOverloads constructor(
             (0 until l.cols).all { l.colClues[it] == currentColClues(it) }
     }
 
+    /** Row/col under a screen point, through the zoom/pan transform; null if off-board. */
+    private fun cellAt(x: Float, y: Float): Pair<Int, Int>? {
+        val l = level ?: return null
+        val bx = (x - panX) / zoom
+        val by = (y - panY) / zoom
+        if (bx < originX || by < originY) return null
+        val c = ((bx - originX) / cell).toInt()
+        val r = ((by - originY) / cell).toInt()
+        return if (r < l.rows && c < l.cols) r to c else null
+    }
+
+    private fun midOf(event: MotionEvent, skipIndex: Int = -1): Pair<Float, Float> {
+        var sx = 0f
+        var sy = 0f
+        var n = 0
+        for (i in 0 until event.pointerCount) {
+            if (i == skipIndex) continue
+            sx += event.getX(i)
+            sy += event.getY(i)
+            n++
+        }
+        return sx / n to sy / n
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val l = level ?: return false
-        if (locked) return false
-        val c = ((event.x - originX) / cell).toInt()
-        val r = ((event.y - originY) / cell).toInt()
-        val inside = event.x >= originX && event.y >= originY && r < l.rows && c < l.cols
+        if (level == null || locked) return false
+        scaleDetector.onTouchEvent(event)
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                if (!inside) return false
+                val (r, c) = cellAt(event.x, event.y) ?: return true
                 painting = true
                 paintFrom = state[r][c]
                 paintTo = when (tool) {
@@ -205,7 +267,30 @@ class PicrossView @JvmOverloads constructor(
                 }
                 applyPaint(r, c)
             }
-            MotionEvent.ACTION_MOVE -> if (painting && inside) applyPaint(r, c)
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                painting = false
+                val (mx, my) = midOf(event)
+                panLastX = mx
+                panLastY = my
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (event.pointerCount >= 2) {
+                    val (mx, my) = midOf(event)
+                    panX += mx - panLastX
+                    panY += my - panLastY
+                    panLastX = mx
+                    panLastY = my
+                    clampPan()
+                    invalidate()
+                } else if (painting) {
+                    cellAt(event.x, event.y)?.let { (r, c) -> applyPaint(r, c) }
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                val (mx, my) = midOf(event, skipIndex = event.actionIndex)
+                panLastX = mx
+                panLastY = my
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> painting = false
         }
         return true
