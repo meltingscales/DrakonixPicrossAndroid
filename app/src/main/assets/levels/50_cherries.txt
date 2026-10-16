@@ -1,0 +1,13 @@
+Cherries
+G=#43A047
+R=#E53935
+.....GG...
+.....G....
+....G.G...
+...G...G..
+..G....G..
+.RR....RR.
+RRRR..RRRR
+RRRR..RRRR
+RRRR..RRRR
+.RR....RR.

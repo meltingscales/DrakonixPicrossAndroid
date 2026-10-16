@@ -1,0 +1,14 @@
+Ice Cream
+P=#F48FB1
+M=#80CBC4
+C=#D7A86E
+...PPPP...
+..PPPPPP..
+..PPPPPP..
+.MMMMMMMM.
+.MMMMMMMM.
+..CCCCCC..
+..CCCCCC..
+...CCCC...
+...CCCC...
+....CC....

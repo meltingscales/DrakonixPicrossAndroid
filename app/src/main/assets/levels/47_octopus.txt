@@ -1,0 +1,12 @@
+Octopus
+P=#BA68C8
+...PPPP...
+..PPPPPP..
+.PP.PP.PP.
+.PPPPPPPP.
+.PPPPPPPP.
+..PPPPPP..
+.P.P..P.P.
+P..P..P..P
+P.P....P.P
+.P......P.

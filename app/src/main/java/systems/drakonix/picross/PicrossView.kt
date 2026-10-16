@@ -7,8 +7,11 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sign
 
 class PicrossView @JvmOverloads constructor(
     context: Context,
@@ -21,6 +24,7 @@ class PicrossView @JvmOverloads constructor(
         const val EMPTY = 0
         const val FILLED = 1
         const val MARKED = 2
+        private const val GHOST_TAP_MS = 300L
     }
 
     var tool: Tool = Tool.FILL
@@ -35,6 +39,17 @@ class PicrossView @JvmOverloads constructor(
     private var paintFrom = EMPTY
     private var paintTo = EMPTY
     private var painting = false
+
+    // A stroke locks to the row or column it first moves along.
+    private enum class Axis { NONE, ROW, COL }
+    private var axis = Axis.NONE
+    private var strokeR = 0
+    private var strokeC = 0
+
+    // The first finger of a pinch lands slightly before the second; if the
+    // second arrives within this window the stroke is undone, not committed.
+    private var strokeStartMs = 0L
+    private var strokeSnapshot: Array<IntArray>? = null
 
     // Zoom (pinch) and pan (two-finger drag). One finger always paints.
     private var zoom = 1f
@@ -209,7 +224,7 @@ class PicrossView @JvmOverloads constructor(
         for (r in 0 until l.rows) {
             val clues = l.rowClues[r]
             val paint = when {
-                r == cursorR -> clueCursorPaint
+                r == cursorR && axis != Axis.COL -> clueCursorPaint
                 clues == currentRowClues(r) -> clueDonePaint
                 else -> cluePaint
             }
@@ -224,7 +239,7 @@ class PicrossView @JvmOverloads constructor(
         for (c in 0 until l.cols) {
             val clues = l.colClues[c]
             val paint = when {
-                c == cursorC -> clueCursorPaint
+                c == cursorC && axis != Axis.ROW -> clueCursorPaint
                 clues == currentColClues(c) -> clueDonePaint
                 else -> cluePaint
             }
@@ -247,8 +262,13 @@ class PicrossView @JvmOverloads constructor(
 
     private fun drawCells(canvas: Canvas, l: Level) {
         if (cursorR >= 0) {
-            canvas.drawRect(originX, originY + cursorR * cell, originX + l.cols * cell, originY + (cursorR + 1) * cell, cursorLinePaint)
-            canvas.drawRect(originX + cursorC * cell, originY, originX + (cursorC + 1) * cell, originY + l.rows * cell, cursorLinePaint)
+            // Once a stroke locks to a line, only that line stays highlighted.
+            if (axis != Axis.COL) {
+                canvas.drawRect(originX, originY + cursorR * cell, originX + l.cols * cell, originY + (cursorR + 1) * cell, cursorLinePaint)
+            }
+            if (axis != Axis.ROW) {
+                canvas.drawRect(originX + cursorC * cell, originY, originX + (cursorC + 1) * cell, originY + l.rows * cell, cursorLinePaint)
+            }
         }
         for (r in 0 until l.rows) for (c in 0 until l.cols) {
             val left = originX + c * cell
@@ -344,12 +364,21 @@ class PicrossView @JvmOverloads constructor(
                     Tool.MARK -> if (paintFrom == MARKED) EMPTY else MARKED
                     Tool.PAN -> return true
                 }
+                axis = Axis.NONE
+                strokeR = r
+                strokeC = c
+                strokeStartMs = event.eventTime
+                strokeSnapshot = Array(state.size) { state[it].copyOf() }
                 moveCursor(r, c)
                 applyPaint(r, c)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                painting = false
-                moveCursor(-1, -1)
+                val snapshot = strokeSnapshot
+                if (painting && snapshot != null && event.eventTime - strokeStartMs < GHOST_TAP_MS) {
+                    state = snapshot
+                    invalidate()
+                }
+                endStroke()
                 val (mx, my) = midOf(event)
                 panLastX = mx
                 panLastY = my
@@ -364,10 +393,7 @@ class PicrossView @JvmOverloads constructor(
                     clampPan()
                     invalidate()
                 } else if (painting) {
-                    cellAt(event.x, event.y)?.let { (r, c) ->
-                        moveCursor(r, c)
-                        applyPaint(r, c)
-                    }
+                    dragTo(event.x, event.y)
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {
@@ -375,12 +401,42 @@ class PicrossView @JvmOverloads constructor(
                 panLastX = mx
                 panLastY = my
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                painting = false
-                moveCursor(-1, -1)
-            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> endStroke()
         }
         return true
+    }
+
+    private fun endStroke() {
+        painting = false
+        axis = Axis.NONE
+        strokeSnapshot = null
+        moveCursor(-1, -1)
+    }
+
+    /** Extends the stroke toward a screen point, locked to the stroke's row or column. */
+    private fun dragTo(x: Float, y: Float) {
+        val l = level ?: return
+        // Raw cell coords, unclamped, so drifting off the line still tracks along it.
+        val r = floor(((y - panY) / zoom - originY) / cell).toInt()
+        val c = floor(((x - panX) / zoom - originX) / cell).toInt()
+        if (axis == Axis.NONE) {
+            if (r == strokeR && c == strokeC) return
+            axis = if (abs(c - strokeC) >= abs(r - strokeR)) Axis.ROW else Axis.COL
+            invalidate()
+        }
+        val (tr, tc) = when (axis) {
+            Axis.ROW -> strokeR to c.coerceIn(0, l.cols - 1)
+            else -> r.coerceIn(0, l.rows - 1) to strokeC
+        }
+        // Fill every cell between the cursor and the target so fast swipes don't skip.
+        var cr = cursorR
+        var cc = cursorC
+        while (painting && (cr != tr || cc != tc)) {
+            cr += (tr - cr).sign
+            cc += (tc - cc).sign
+            applyPaint(cr, cc)
+        }
+        if (painting) moveCursor(tr, tc)
     }
 
     private fun moveCursor(r: Int, c: Int) {
@@ -396,8 +452,7 @@ class PicrossView @JvmOverloads constructor(
         invalidate()
         if (isSolved()) {
             locked = true
-            painting = false
-            moveCursor(-1, -1)
+            endStroke()
             onSolved?.invoke()
         }
     }

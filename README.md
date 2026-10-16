@@ -11,7 +11,7 @@ from the releases page and sideload it. Google Play listing coming soon.
 
 Play Store screenshots (1080×2160) live in [`screenshots/play/`](screenshots/play/).
 
-- 44 levels (6 at 5×5, 31 at 10×10, 7 at 15×15) — dragons, furries, and
+- 54 levels (6 at 5×5, 39 at 10×10, 9 at 15×15) — dragons, furries, and
   cute critters; pinch to zoom, two fingers to pan
 - Color themes inspired by Downwell (Paper, Downwell, Game Boy, CGA, …)
 - In-progress puzzles are saved when you leave them

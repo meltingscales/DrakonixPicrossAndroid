@@ -1,0 +1,14 @@
+Mouse
+G=#9E9E9E
+P=#F48FB1
+N=#EC407A
+.GG....GG.
+GPPG..GPPG
+GPPGGGGPPG
+.GGGGGGGG.
+.GG.GG.GG.
+.GGGGGGGG.
+..GGNNGG..
+...GGGG...
+....GG....
+..........
