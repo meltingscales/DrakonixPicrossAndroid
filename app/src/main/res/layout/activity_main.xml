@@ -11,6 +11,7 @@
         android:padding="16dp">
 
         <TextView
+            android:id="@+id/titleText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
@@ -19,18 +20,31 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/pickText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:text="@string/pick_level" />
 
-        <Button
-            android:id="@+id/galleryButton"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="12dp"
-            android:text="@string/gallery" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/galleryButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gallery" />
+
+            <Button
+                android:id="@+id/themeButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/theme" />
+        </LinearLayout>
 
         <GridLayout
             android:id="@+id/levelGrid"

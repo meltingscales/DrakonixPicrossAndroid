@@ -2,7 +2,6 @@ package com.drakonix.picross
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.MotionEvent
@@ -35,27 +34,31 @@ class PicrossView @JvmOverloads constructor(
     private var paintTo = EMPTY
     private var painting = false
 
-    private val gridPaint = Paint().apply {
-        color = Color.parseColor("#B0BEC5")
-        strokeWidth = 2f
-    }
-    private val blockPaint = Paint().apply {
-        color = Color.parseColor("#455A64")
-        strokeWidth = 5f
-    }
-    private val fillPaint = Paint().apply { color = Color.parseColor("#263238") }
+    private val gridPaint = Paint().apply { strokeWidth = 2f }
+    private val blockPaint = Paint().apply { strokeWidth = 5f }
+    private val fillPaint = Paint()
     private val markPaint = Paint().apply {
-        color = Color.parseColor("#90A4AE")
         strokeWidth = 4f
         strokeCap = Paint.Cap.ROUND
     }
     private val cluePaint = Paint().apply {
-        color = Color.parseColor("#37474F")
         isAntiAlias = true
         textAlign = Paint.Align.CENTER
     }
-    private val clueDonePaint = Paint(cluePaint).apply {
-        color = Color.parseColor("#B0BEC5")
+    private val clueDonePaint = Paint(cluePaint)
+
+    init {
+        setPalette(Themes.all[0])
+    }
+
+    fun setPalette(p: Palette) {
+        gridPaint.color = p.fg.withAlpha(0.25f)
+        blockPaint.color = p.fg.withAlpha(0.55f)
+        fillPaint.color = p.fg
+        markPaint.color = p.accent
+        cluePaint.color = p.fg
+        clueDonePaint.color = p.fg.withAlpha(0.35f)
+        invalidate()
     }
 
     // Geometry, recomputed in onDraw.
@@ -74,6 +77,23 @@ class PicrossView @JvmOverloads constructor(
         val l = level ?: return
         state = Array(l.rows) { IntArray(l.cols) }
         locked = false
+        invalidate()
+    }
+
+    /** Board state as one char per cell ('0' empty, '1' filled, '2' marked), row-major. */
+    fun exportState(): String =
+        state.joinToString("") { row -> row.joinToString("") }
+
+    /** True if any cell is filled or marked. */
+    fun hasProgress(): Boolean = state.any { row -> row.any { it != EMPTY } }
+
+    /** Restores a board exported by [exportState]; ignores input that doesn't fit. */
+    fun importState(saved: String) {
+        val l = level ?: return
+        if (saved.length != l.rows * l.cols || saved.any { it !in '0'..'2' }) return
+        for (r in 0 until l.rows) for (c in 0 until l.cols) {
+            state[r][c] = saved[r * l.cols + c] - '0'
+        }
         invalidate()
     }
 
