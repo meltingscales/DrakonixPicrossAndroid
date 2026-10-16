@@ -51,7 +51,8 @@ just build  # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
 `just --list` shows all commands (build, bundle, install, launch, run,
-uninstall, clean, screenshot). Without `just`: `./gradlew assembleDebug`.
+uninstall, clean, screenshot, gallery). `just gallery` renders every level
+to `build/gallery.html` and opens it in your browser; it needs only Python. Without `just`: `./gradlew assembleDebug`.
 
 Requires Android SDK (compileSdk 36) and JDK 17+. Point `local.properties`
 at your SDK (`sdk.dir=...`). minSdk 26.

@@ -26,6 +26,10 @@ run: install launch
 uninstall:
     adb uninstall systems.drakonix.picross
 
+# Render all levels to build/gallery.html and open it in the browser (no device needed)
+gallery:
+    python3 tools/gallery.py
+
 # Remove build outputs
 clean:
     ./gradlew clean
