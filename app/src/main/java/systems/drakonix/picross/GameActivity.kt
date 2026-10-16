@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
-import android.widget.ToggleButton
 
 class GameActivity : Activity() {
 
@@ -36,33 +35,43 @@ class GameActivity : Activity() {
         board = findViewById(R.id.board)
         board.setPalette(palette)
         board.setLevel(level)
+        val maxLives = Settings.lives(this)
+        board.setLives(maxLives, prefs.getInt(MainActivity.livesKey(level), maxLives))
         prefs.getString(MainActivity.progressKey(level), null)?.let { board.importState(it) }
 
-        val buttonTint = palette.bg.blendToward(palette.fg, 0.12f)
-        val toggles = mapOf(
-            PicrossView.Tool.FILL to findViewById<ToggleButton>(R.id.toolFill),
-            PicrossView.Tool.MARK to findViewById<ToggleButton>(R.id.toolMark),
-            PicrossView.Tool.PAN to findViewById<ToggleButton>(R.id.toolPan),
+        val livesText = findViewById<TextView>(R.id.livesText)
+        livesText.setTextColor(palette.accent)
+        fun showLives(left: Int) {
+            livesText.visibility = if (board.maxLives > 0) View.VISIBLE else View.GONE
+            // U+FE0E asks for the text glyph, not the red emoji, so hearts take the theme color.
+            livesText.text = "♥\uFE0E".repeat(left) + "♡\uFE0E".repeat(board.maxLives - left)
+        }
+        showLives(board.lives)
+        board.onLivesChanged = { showLives(it) }
+        board.onOutOfLives = {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.out_of_lives_title)
+                .setMessage(R.string.out_of_lives_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .setCancelable(false)
+                .show()
+            board.reset()
+            showLives(board.lives)
+        }
+
+        ToolBar(
+            board,
+            mapOf(
+                PicrossView.Tool.FILL to findViewById(R.id.toolFill),
+                PicrossView.Tool.MARK to findViewById(R.id.toolMark),
+                PicrossView.Tool.PAN to findViewById(R.id.toolPan),
+            ),
+            palette,
         )
         val resetView = findViewById<Button>(R.id.resetViewButton)
         val clear = findViewById<Button>(R.id.resetButton)
-        (toggles.values + resetView + clear).forEach<TextView> {
-            it.backgroundTintList = android.content.res.ColorStateList.valueOf(buttonTint)
-            it.setTextColor(palette.fg)
-        }
-        fun selectTool(tool: PicrossView.Tool) {
-            board.tool = tool
-            toggles.forEach { (t, button) ->
-                val selected = t == tool
-                button.isChecked = selected
-                button.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    if (selected) palette.accent else buttonTint
-                )
-                button.setTextColor(if (selected) palette.bg else palette.fg)
-            }
-        }
-        toggles.forEach { (tool, button) -> button.setOnClickListener { selectTool(tool) } }
-        selectTool(PicrossView.Tool.FILL)
+        val buttonTint = palette.bg.blendToward(palette.fg, 0.12f)
+        listOf(resetView, clear).forEach { it.stylize(buttonTint, palette.fg) }
 
         resetView.setOnClickListener { board.resetView() }
         clear.setOnClickListener {
@@ -70,7 +79,10 @@ class GameActivity : Activity() {
             AlertDialog.Builder(this)
                 .setTitle(R.string.clear_title)
                 .setMessage(R.string.clear_message)
-                .setPositiveButton(R.string.reset) { _, _ -> board.reset() }
+                .setPositiveButton(R.string.reset) { _, _ ->
+                    board.reset()
+                    showLives(board.lives)
+                }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
@@ -80,6 +92,7 @@ class GameActivity : Activity() {
             prefs.edit()
                 .putBoolean(MainActivity.solvedKey(level), true)
                 .remove(MainActivity.progressKey(level))
+                .remove(MainActivity.livesKey(level))
                 .apply()
             AlertDialog.Builder(this)
                 .setTitle(R.string.solved_title)
@@ -92,11 +105,19 @@ class GameActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        if (!solved && board.hasProgress()) {
-            prefs.edit().putString(MainActivity.progressKey(level), board.exportState()).apply()
-        } else if (!solved) {
-            prefs.edit().remove(MainActivity.progressKey(level)).apply()
+        if (solved) return
+        val edit = prefs.edit()
+        if (board.hasProgress()) {
+            edit.putString(MainActivity.progressKey(level), board.exportState())
+        } else {
+            edit.remove(MainActivity.progressKey(level))
         }
+        if (board.maxLives > 0 && board.lives < board.maxLives) {
+            edit.putInt(MainActivity.livesKey(level), board.lives)
+        } else {
+            edit.remove(MainActivity.livesKey(level))
+        }
+        edit.apply()
     }
 
     companion object {

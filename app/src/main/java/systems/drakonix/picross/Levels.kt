@@ -26,6 +26,14 @@ class Level(val name: String, private val grid: List<String>, private val colors
         computeClues(rows) { r -> solution[r][c] }
     }
 
+    /** Start index of each solution run, aligned with the clue numbers (empty for a [0] line). */
+    val rowRunStarts: List<List<Int>> = (0 until rows).map { r ->
+        runStarts(cols) { c -> solution[r][c] }
+    }
+    val colRunStarts: List<List<Int>> = (0 until cols).map { c ->
+        runStarts(rows) { r -> solution[r][c] }
+    }
+
     /** Picture color of a filled cell, or null to use the theme foreground. */
     fun colorAt(r: Int, c: Int): Int? = colors[grid[r][c]]
 }
@@ -43,6 +51,23 @@ fun computeClues(count: Int, filled: (Int) -> Boolean): List<Int> {
     if (run > 0) clues.add(run)
     if (clues.isEmpty()) clues.add(0)
     return clues
+}
+
+private fun runStarts(count: Int, filled: (Int) -> Boolean): List<Int> =
+    (0 until count).filter { filled(it) && (it == 0 || !filled(it - 1)) }
+
+/**
+ * Which clue numbers of a line are placed correctly: the player has filled
+ * exactly that solution run, with no filled cell touching either end. Order
+ * independent, so the 3 in "1 3 1" can fade before either 1.
+ */
+fun cluesDone(clues: List<Int>, starts: List<Int>, count: Int, filled: (Int) -> Boolean): List<Boolean> {
+    if (starts.isEmpty()) return listOf((0 until count).none(filled))
+    return clues.indices.map { i ->
+        val s = starts[i]
+        val e = s + clues[i]
+        (s until e).all(filled) && (s == 0 || !filled(s - 1)) && (e == count || !filled(e))
+    }
 }
 
 /**

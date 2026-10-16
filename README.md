@@ -15,6 +15,9 @@ Play Store screenshots (1080×2160) live in [`screenshots/play/`](screenshots/pl
   cute critters; pinch to zoom, two fingers to pan
 - Color themes inspired by Downwell (Paper, Downwell, Game Boy, CGA, …)
 - In-progress puzzles are saved when you leave them
+- Self-playing tutorial with step controls (offered on first launch, or Help → Tutorial)
+- Optional lives mode (Options): wrong moves cost a life and reveal that cell
+- Clue numbers fade individually once their run is correctly placed
 - Gallery mode: solved levels show their pixel art, unsolved stay "???"
 - Levels are plain ASCII data files: `app/src/main/assets/levels/NN_name.txt`
   (file order = level order). Optional `CHAR=#RRGGBB` lines color the

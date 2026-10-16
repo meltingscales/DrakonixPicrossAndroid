@@ -3,6 +3,8 @@ package systems.drakonix.picross
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PointF
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -30,8 +32,26 @@ class PicrossView @JvmOverloads constructor(
     var tool: Tool = Tool.FILL
     var onSolved: (() -> Unit)? = null
 
+    /** Called when the lives count changes (a wrong move, or a ghost-tap undo), with the lives left. */
+    var onLivesChanged: ((Int) -> Unit)? = null
+
+    /** Called when the last life is lost, once the stroke that lost it ends. */
+    var onOutOfLives: (() -> Unit)? = null
+
+    /** Lives per attempt; 0 disables lives mode. */
+    var maxLives = 0
+        private set
+    var lives = 0
+        private set
+
+    /** When set, real touches are ignored; the tutorial drives the board via [demoTouch]. */
+    var demoMode = false
+
     private var level: Level? = null
     private var state: Array<IntArray> = emptyArray()
+
+    // Cells revealed by a mistake in lives mode; they can't be changed.
+    private var fixed: Array<BooleanArray> = emptyArray()
     private var locked = false
 
     // Drag painting: on down we decide what value we are painting and only
@@ -48,8 +68,9 @@ class PicrossView @JvmOverloads constructor(
 
     // The first finger of a pinch lands slightly before the second; if the
     // second arrives within this window the stroke is undone, not committed.
+    private class Snapshot(val state: Array<IntArray>, val fixed: Array<BooleanArray>, val lives: Int)
     private var strokeStartMs = 0L
-    private var strokeSnapshot: Array<IntArray>? = null
+    private var strokeSnapshot: Snapshot? = null
 
     // Zoom (pinch) and pan (two-finger drag). One finger always paints.
     private var zoom = 1f
@@ -78,6 +99,7 @@ class PicrossView @JvmOverloads constructor(
     private val blockPaint = Paint().apply { strokeWidth = 5f }
     private val fillPaint = Paint()
     private val revealPaint = Paint()
+    private val fixedPaint = Paint()
     private val markPaint = Paint().apply {
         strokeWidth = 4f
         strokeCap = Paint.Cap.ROUND
@@ -94,47 +116,74 @@ class PicrossView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = 6f
     }
+    private val ghostFillPaint = Paint().apply { isAntiAlias = true }
+    private val ghostRingPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+    }
 
     // Cell under the painting finger, or -1 when not touching.
     private var cursorR = -1
     private var cursorC = -1
+
+    // Tutorial "fingers": circles drawn over the board.
+    private var ghosts: List<PointF> = emptyList()
+    private var ghostsPressed = false
+    private var accent = 0
 
     init {
         setPalette(Themes.all[0])
     }
 
     fun setPalette(p: Palette) {
+        accent = p.accent
         bgPaint.color = p.bg
         gridPaint.color = p.fg.withAlpha(0.25f)
         blockPaint.color = p.fg.withAlpha(0.55f)
         fillPaint.color = p.fg
+        fixedPaint.color = p.accent.withAlpha(0.22f)
         markPaint.color = p.accent
         cluePaint.color = p.fg
         clueDonePaint.color = p.fg.withAlpha(0.35f)
         clueCursorPaint.color = p.accent
         cursorLinePaint.color = p.accent.withAlpha(0.18f)
         cursorCellPaint.color = p.accent
+        ghostRingPaint.color = p.accent
         invalidate()
     }
 
-    // Geometry, recomputed in onDraw.
+    // Board geometry in unzoomed view coordinates; see updateGeometry().
     private var cell = 0f
     private var originX = 0f
     private var originY = 0f
 
     fun setLevel(level: Level) {
         this.level = level
-        state = Array(level.rows) { IntArray(level.cols) }
+        clearBoard()
+    }
+
+    /** Wipes the board, including revealed cells, and restores full lives. */
+    fun reset() {
+        if (level == null) return
+        clearBoard()
+    }
+
+    private fun clearBoard() {
+        val l = level ?: return
+        state = Array(l.rows) { IntArray(l.cols) }
+        fixed = Array(l.rows) { BooleanArray(l.cols) }
+        lives = maxLives
         locked = false
+        endStroke()
         resetViewport()
         invalidate()
     }
 
-    fun reset() {
-        val l = level ?: return
-        state = Array(l.rows) { IntArray(l.cols) }
-        locked = false
-        resetViewport()
+    /** Turns lives mode on ([max] > 0) or off, resuming with [current] lives left. */
+    fun setLives(max: Int, current: Int = max) {
+        maxLives = max
+        lives = if (max > 0) current.coerceIn(1, max) else 0
         invalidate()
     }
 
@@ -154,9 +203,15 @@ class PicrossView @JvmOverloads constructor(
         panY = panY.coerceIn(height * (1 - zoom), 0f)
     }
 
-    /** Board state as one char per cell ('0' empty, '1' filled, '2' marked), row-major. */
-    fun exportState(): String =
-        state.joinToString("") { row -> row.joinToString("") }
+    /**
+     * Board state as one char per cell, row-major: '0' empty, '1' filled,
+     * '2' marked, '3'/'4' filled/marked cells revealed by a mistake.
+     */
+    fun exportState(): String = buildString {
+        for (r in state.indices) for (c in state[r].indices) {
+            append(state[r][c] + if (fixed[r][c]) 2 else 0)
+        }
+    }
 
     /** True if any cell is filled or marked. */
     fun hasProgress(): Boolean = state.any { row -> row.any { it != EMPTY } }
@@ -164,27 +219,65 @@ class PicrossView @JvmOverloads constructor(
     /** Restores a board exported by [exportState]; ignores input that doesn't fit. */
     fun importState(saved: String) {
         val l = level ?: return
-        if (saved.length != l.rows * l.cols || saved.any { it !in '0'..'2' }) return
+        if (saved.length != l.rows * l.cols || saved.any { it !in '0'..'4' }) return
         for (r in 0 until l.rows) for (c in 0 until l.cols) {
-            state[r][c] = saved[r * l.cols + c] - '0'
+            val v = saved[r * l.cols + c] - '0'
+            fixed[r][c] = v >= 3
+            state[r][c] = if (v >= 3) v - 2 else v
         }
         invalidate()
     }
 
+    // --- Tutorial hooks ---
+
+    /** Screen position of a cell's center at the current zoom and pan. */
+    fun cellCenter(r: Int, c: Int): PointF {
+        updateGeometry()
+        return PointF(panX + (originX + (c + 0.5f) * cell) * zoom, panY + (originY + (r + 0.5f) * cell) * zoom)
+    }
+
+    /** Feeds a synthetic single-finger touch through the normal input path. */
+    fun demoTouch(action: Int, x: Float, y: Float) {
+        updateGeometry()
+        val now = SystemClock.uptimeMillis()
+        val event = MotionEvent.obtain(now, now, action, x, y, 0)
+        handleTouch(event)
+        event.recycle()
+    }
+
+    fun showGhosts(points: List<PointF>, pressed: Boolean) {
+        ghosts = points
+        ghostsPressed = pressed
+        invalidate()
+    }
+
+    fun setViewport(newZoom: Float, newPanX: Float, newPanY: Float) {
+        zoom = newZoom.coerceIn(1f, 4f)
+        panX = newPanX
+        panY = newPanY
+        clampPan()
+        invalidate()
+    }
+
+    // --- Drawing ---
+
     private fun maxRowClueLen() = level?.rowClues?.maxOf { it.size } ?: 0
     private fun maxColClueLen() = level?.colClues?.maxOf { it.size } ?: 0
 
-    override fun onDraw(canvas: Canvas) {
+    private fun updateGeometry() {
         val l = level ?: return
         val clueCols = maxRowClueLen()
         val clueRows = maxColClueLen()
         val totalCols = l.cols + clueCols
         val totalRows = l.rows + clueRows
         cell = min(width.toFloat() / totalCols, height.toFloat() / totalRows)
-        val boardW = cell * totalCols
-        val boardH = cell * totalRows
-        originX = (width - boardW) / 2 + clueCols * cell
-        originY = (height - boardH) / 2 + clueRows * cell
+        originX = (width - cell * totalCols) / 2 + clueCols * cell
+        originY = (height - cell * totalRows) / 2 + clueRows * cell
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val l = level ?: return
+        updateGeometry()
 
         canvas.save()
         canvas.translate(panX, panY)
@@ -199,6 +292,7 @@ class PicrossView @JvmOverloads constructor(
         canvas.restore()
 
         drawClues(canvas, l)
+        drawGhosts(canvas)
     }
 
     /** Screen-space grid geometry: cell size, grid top-left, and clue band edges. */
@@ -223,30 +317,24 @@ class PicrossView @JvmOverloads constructor(
         canvas.drawRect(0f, 0f, g.rowBandRight, height.toFloat(), bgPaint)
         for (r in 0 until l.rows) {
             val clues = l.rowClues[r]
-            val paint = when {
-                r == cursorR && axis != Axis.COL -> clueCursorPaint
-                clues == currentRowClues(r) -> clueDonePaint
-                else -> cluePaint
-            }
+            val done = cluesDone(clues, l.rowRunStarts[r], l.cols) { c -> state[r][c] == FILLED }
+            val highlighted = r == cursorR && axis != Axis.COL
             clues.forEachIndexed { i, n ->
                 val x = g.rowBandRight - (clues.size - i - 0.5f) * g.cs
                 val y = g.gy + r * g.cs + textOffset
-                canvas.drawText(n.toString(), x, y, paint)
+                canvas.drawText(n.toString(), x, y, cluePaintFor(highlighted, done[i]))
             }
         }
 
         canvas.drawRect(0f, 0f, width.toFloat(), g.colBandBottom, bgPaint)
         for (c in 0 until l.cols) {
             val clues = l.colClues[c]
-            val paint = when {
-                c == cursorC && axis != Axis.ROW -> clueCursorPaint
-                clues == currentColClues(c) -> clueDonePaint
-                else -> cluePaint
-            }
+            val done = cluesDone(clues, l.colRunStarts[c], l.rows) { r -> state[r][c] == FILLED }
+            val highlighted = c == cursorC && axis != Axis.ROW
             clues.forEachIndexed { i, n ->
                 val x = g.gx + c * g.cs + g.cs / 2
                 val y = g.colBandBottom - (clues.size - i) * g.cs + textOffset
-                canvas.drawText(n.toString(), x, y, paint)
+                canvas.drawText(n.toString(), x, y, cluePaintFor(highlighted, done[i]))
             }
         }
 
@@ -258,6 +346,12 @@ class PicrossView @JvmOverloads constructor(
         if (g.colBandBottom > g.gy) {
             canvas.drawLine(g.rowBandRight, g.colBandBottom, width.toFloat(), g.colBandBottom, blockPaint)
         }
+    }
+
+    private fun cluePaintFor(highlighted: Boolean, done: Boolean) = when {
+        highlighted -> clueCursorPaint
+        done -> clueDonePaint
+        else -> cluePaint
     }
 
     private fun drawCells(canvas: Canvas, l: Level) {
@@ -273,6 +367,7 @@ class PicrossView @JvmOverloads constructor(
         for (r in 0 until l.rows) for (c in 0 until l.cols) {
             val left = originX + c * cell
             val top = originY + r * cell
+            if (fixed[r][c]) canvas.drawRect(left, top, left + cell, top + cell, fixedPaint)
             when (state[r][c]) {
                 FILLED -> {
                     // Picture colors stay hidden until solved; they'd give the answer away.
@@ -305,21 +400,31 @@ class PicrossView @JvmOverloads constructor(
         }
     }
 
-    private fun currentRowClues(r: Int): List<Int> {
-        val l = level!!
-        return computeClues(l.cols) { c -> state[r][c] == FILLED }
+    private fun drawGhosts(canvas: Canvas) {
+        if (ghosts.isEmpty()) return
+        val radius = max(cell * zoom * 0.32f, 28f)
+        ghostFillPaint.color = accent.withAlpha(if (ghostsPressed) 0.45f else 0.18f)
+        for (p in ghosts) {
+            canvas.drawCircle(p.x, p.y, radius, ghostFillPaint)
+            canvas.drawCircle(p.x, p.y, radius, ghostRingPaint)
+        }
     }
 
-    private fun currentColClues(c: Int): List<Int> {
-        val l = level!!
-        return computeClues(l.rows) { r -> state[r][c] == FILLED }
-    }
+    // --- Rules ---
+
+    private fun currentRowClues(r: Int): List<Int> =
+        computeClues(level!!.cols) { c -> state[r][c] == FILLED }
+
+    private fun currentColClues(c: Int): List<Int> =
+        computeClues(level!!.rows) { r -> state[r][c] == FILLED }
 
     private fun isSolved(): Boolean {
         val l = level ?: return false
         return (0 until l.rows).all { l.rowClues[it] == currentRowClues(it) } &&
             (0 until l.cols).all { l.colClues[it] == currentColClues(it) }
     }
+
+    // --- Input ---
 
     /** Row/col under a screen point, through the zoom/pan transform; null if off-board. */
     private fun cellAt(x: Float, y: Float): Pair<Int, Int>? {
@@ -347,7 +452,10 @@ class PicrossView @JvmOverloads constructor(
         return sx / n to sy / n
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
+    override fun onTouchEvent(event: MotionEvent): Boolean =
+        if (demoMode) false else handleTouch(event)
+
+    private fun handleTouch(event: MotionEvent): Boolean {
         if (level == null || locked) return false
         scaleDetector.onTouchEvent(event)
 
@@ -368,14 +476,21 @@ class PicrossView @JvmOverloads constructor(
                 strokeR = r
                 strokeC = c
                 strokeStartMs = event.eventTime
-                strokeSnapshot = Array(state.size) { state[it].copyOf() }
+                strokeSnapshot = Snapshot(
+                    Array(state.size) { state[it].copyOf() },
+                    Array(fixed.size) { fixed[it].copyOf() },
+                    lives,
+                )
                 moveCursor(r, c)
                 applyPaint(r, c)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 val snapshot = strokeSnapshot
-                if (painting && snapshot != null && event.eventTime - strokeStartMs < GHOST_TAP_MS) {
-                    state = snapshot
+                if (snapshot != null && event.eventTime - strokeStartMs < GHOST_TAP_MS) {
+                    state = snapshot.state
+                    fixed = snapshot.fixed
+                    lives = snapshot.lives
+                    onLivesChanged?.invoke(lives)
                     invalidate()
                 }
                 endStroke()
@@ -411,6 +526,7 @@ class PicrossView @JvmOverloads constructor(
         axis = Axis.NONE
         strokeSnapshot = null
         moveCursor(-1, -1)
+        if (maxLives > 0 && lives <= 0 && !locked) onOutOfLives?.invoke()
     }
 
     /** Extends the stroke toward a screen point, locked to the stroke's row or column. */
@@ -447,8 +563,19 @@ class PicrossView @JvmOverloads constructor(
     }
 
     private fun applyPaint(r: Int, c: Int) {
-        if (state[r][c] != paintFrom || state[r][c] == paintTo) return
-        state[r][c] = paintTo
+        if (fixed[r][c] || state[r][c] != paintFrom || state[r][c] == paintTo) return
+        val l = level!!
+        val wrong = maxLives > 0 && paintTo != EMPTY && (paintTo == FILLED) != l.solution[r][c]
+        if (wrong) {
+            // Reveal the right answer for this cell, permanently, and stop the stroke.
+            state[r][c] = if (l.solution[r][c]) FILLED else MARKED
+            fixed[r][c] = true
+            lives--
+            painting = false
+            onLivesChanged?.invoke(lives)
+        } else {
+            state[r][c] = paintTo
+        }
         invalidate()
         if (isSolved()) {
             locked = true

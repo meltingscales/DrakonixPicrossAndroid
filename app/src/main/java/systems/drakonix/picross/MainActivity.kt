@@ -22,12 +22,21 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.galleryButton).setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
-        findViewById<Button>(R.id.themeButton).setOnClickListener { pickTheme() }
+        findViewById<Button>(R.id.themeButton).setOnClickListener { showOptions() }
         findViewById<Button>(R.id.helpButton).setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle(R.string.help_title)
                 .setMessage(R.string.help_text)
                 .setPositiveButton(android.R.string.ok, null)
+                .setNeutralButton(R.string.tutorial) { _, _ -> startTutorial() }
+                .show()
+        }
+        if (Settings.shouldOfferTutorial(this)) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.tutorial_offer_title)
+                .setMessage(R.string.tutorial_offer_message)
+                .setPositiveButton(R.string.tutorial_offer_yes) { _, _ -> startTutorial() }
+                .setNegativeButton(R.string.tutorial_offer_no, null)
                 .show()
         }
     }
@@ -35,6 +44,41 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         populate()
+    }
+
+    private fun startTutorial() {
+        startActivity(Intent(this, TutorialActivity::class.java))
+    }
+
+    private fun showOptions() {
+        val livesLabel = { n: Int -> if (n == 0) getString(R.string.lives_off) else getString(R.string.lives_n, n) }
+        val items = arrayOf(
+            getString(R.string.option_theme, Themes.current(this).name),
+            getString(R.string.option_lives, livesLabel(Settings.lives(this))),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.options_title)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> pickTheme()
+                    1 -> pickLives(livesLabel)
+                }
+            }
+            .show()
+    }
+
+    private fun pickLives(label: (Int) -> String) {
+        val choices = Settings.livesChoices
+        AlertDialog.Builder(this)
+            .setTitle(R.string.lives_title)
+            .setSingleChoiceItems(
+                choices.map(label).toTypedArray(),
+                choices.indexOf(Settings.lives(this)).coerceAtLeast(0),
+            ) { dialog, which ->
+                Settings.setLives(this, choices[which])
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun pickTheme() {
@@ -100,6 +144,7 @@ class MainActivity : Activity() {
         const val PREFS = "picross"
         fun solvedKey(level: Level) = "solved_${level.name}"
         fun progressKey(level: Level) = "progress_${level.name}"
+        fun livesKey(level: Level) = "lives_${level.name}"
     }
 }
 
