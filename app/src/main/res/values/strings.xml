@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Drakonix Picross</string>
+    <string name="pick_level">Pick a level</string>
+    <string name="gallery">Gallery</string>
+    <string name="gallery_title">Gallery</string>
+    <string name="gallery_unknown">"???"</string>
+    <string name="level_button">%1$d. %2$s\n%3$d×%4$d</string>
+    <string name="level_button_solved">%1$d. %2$s ✓\n%3$d×%4$d</string>
+    <string name="game_title">Level %1$d — %2$s</string>
+    <string name="tool_fill">Fill</string>
+    <string name="tool_mark">Mark ✕</string>
+    <string name="reset">Reset</string>
+    <string name="solved_title">Solved!</string>
+    <string name="solved_message">You revealed: %1$s</string>
+    <string name="solved_back">Back to levels</string>
+</resources>

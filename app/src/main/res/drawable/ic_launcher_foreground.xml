@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5x5 picross heart on the adaptive-icon safe area (center 66x66 of 108x108). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group android:translateX="29" android:translateY="29">
+        <!-- grid cells, 10x10 each -->
+        <path android:fillColor="#26A69A" android:pathData="M10,0h10v10h-10z M30,0h10v10h-10z
+            M0,10h50v20h-50z
+            M10,30h30v10h-30z
+            M20,40h10v10h-10z" />
+        <!-- grid lines -->
+        <path android:strokeColor="#455A64" android:strokeWidth="1.5" android:fillColor="#00000000"
+            android:pathData="M0,0h50v50h-50z M10,0v50 M20,0v50 M30,0v50 M40,0v50
+            M0,10h50 M0,20h50 M0,30h50 M0,40h50" />
+    </group>
+</vector>
