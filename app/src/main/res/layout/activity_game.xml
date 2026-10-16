@@ -13,7 +13,7 @@
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <com.drakonix.picross.PicrossView
+    <systems.drakonix.picross.PicrossView
         android:id="@+id/board"
         android:layout_width="match_parent"
         android:layout_height="0dp"

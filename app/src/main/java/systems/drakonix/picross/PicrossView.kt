@@ -1,4 +1,4 @@
-package com.drakonix.picross
+package systems.drakonix.picross
 
 import android.content.Context
 import android.graphics.Canvas

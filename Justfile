@@ -17,14 +17,14 @@ install: build
 
 # Launch the app on the connected device
 launch:
-    adb shell am start -n com.drakonix.picross/.MainActivity
+    adb shell am start -n systems.drakonix.picross/.MainActivity
 
 # Build, install, and launch in one go
 run: install launch
 
 # Uninstall from the connected device (wipes solved progress)
 uninstall:
-    adb uninstall com.drakonix.picross
+    adb uninstall systems.drakonix.picross
 
 # Remove build outputs
 clean:

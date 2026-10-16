@@ -211,5 +211,5 @@ Setup:
   now; expect to bump it roughly yearly.
 - **App name collisions**: "Drakonix Picross" is distinctive, but Play
   rejects names impersonating existing apps.
-- **The package id `com.drakonix.picross` is permanent** once published.
+- **The package id `systems.drakonix.picross` is permanent** once published.
   Own the domain or at least be comfortable with the id forever.

@@ -12,11 +12,11 @@ val keystoreProps = Properties().apply {
 }
 
 android {
-    namespace = "com.drakonix.picross"
+    namespace = "systems.drakonix.picross"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.drakonix.picross"
+        applicationId = "systems.drakonix.picross"
         minSdk = 26
         targetSdk = 36
         // CI sets these from the release tag; local builds use the fallbacks.
