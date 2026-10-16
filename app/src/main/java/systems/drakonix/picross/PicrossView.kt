@@ -61,6 +61,7 @@ class PicrossView @JvmOverloads constructor(
     private val gridPaint = Paint().apply { strokeWidth = 2f }
     private val blockPaint = Paint().apply { strokeWidth = 5f }
     private val fillPaint = Paint()
+    private val revealPaint = Paint()
     private val markPaint = Paint().apply {
         strokeWidth = 4f
         strokeCap = Paint.Cap.ROUND
@@ -187,7 +188,13 @@ class PicrossView @JvmOverloads constructor(
             val left = originX + c * cell
             val top = originY + r * cell
             when (state[r][c]) {
-                FILLED -> canvas.drawRect(left + 1, top + 1, left + cell - 1, top + cell - 1, fillPaint)
+                FILLED -> {
+                    // Picture colors stay hidden until solved; they'd give the answer away.
+                    val paint = if (locked) {
+                        revealPaint.apply { color = l.colorAt(r, c) ?: fillPaint.color }
+                    } else fillPaint
+                    canvas.drawRect(left + 1, top + 1, left + cell - 1, top + cell - 1, paint)
+                }
                 MARKED -> {
                     val inset = cell * 0.28f
                     canvas.drawLine(left + inset, top + inset, left + cell - inset, top + cell - inset, markPaint)

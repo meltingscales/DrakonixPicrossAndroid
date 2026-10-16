@@ -3,10 +3,12 @@ package systems.drakonix.picross
 import android.content.Context
 
 /**
- * A picross puzzle. [grid] rows use '#' for filled and '.' for empty;
- * all rows must have equal length.
+ * A picross puzzle. [grid] rows use '.' for empty and any other character
+ * for filled; all rows must have equal length. [colors] maps fill characters
+ * to ARGB colors for the solved picture; unmapped fills (e.g. '#') use the
+ * theme's foreground.
  */
-class Level(val name: String, grid: List<String>) {
+class Level(val name: String, private val grid: List<String>, private val colors: Map<Char, Int> = emptyMap()) {
     init {
         require(grid.isNotEmpty()) { "Level $name has no rows" }
         require(grid.all { it.length == grid[0].length }) { "Level $name rows differ in width" }
@@ -15,7 +17,7 @@ class Level(val name: String, grid: List<String>) {
     val rows = grid.size
     val cols = grid[0].length
     val solution: Array<BooleanArray> =
-        Array(rows) { r -> BooleanArray(cols) { c -> grid[r][c] == '#' } }
+        Array(rows) { r -> BooleanArray(cols) { c -> grid[r][c] != '.' } }
 
     val rowClues: List<List<Int>> = (0 until rows).map { r ->
         computeClues(cols) { c -> solution[r][c] }
@@ -23,6 +25,9 @@ class Level(val name: String, grid: List<String>) {
     val colClues: List<List<Int>> = (0 until cols).map { c ->
         computeClues(rows) { r -> solution[r][c] }
     }
+
+    /** Picture color of a filled cell, or null to use the theme foreground. */
+    fun colorAt(r: Int, c: Int): Int? = colors[grid[r][c]]
 }
 
 /** Run lengths of filled cells along a line; [0] for an empty line. */
@@ -42,28 +47,44 @@ fun computeClues(count: Int, filled: (Int) -> Boolean): List<Int> {
 
 /**
  * Loads levels from assets/levels/, one file per level, played in filename
- * order. File format: first non-blank line is the level name, every
- * following line of only '#'/'.' is a grid row; other lines are ignored.
+ * order. File format (blank lines ignored):
+ *
+ *     Level Name
+ *     R=#E53935        optional color definitions, before the grid
+ *     ..RR#..          grid rows: '.' empty, '#' or a defined char filled
  */
 object Levels {
     private const val DIR = "levels"
-    private val gridRow = Regex("^[#.]+$")
+    private val colorDef = Regex("""^(\S)=#([0-9A-Fa-f]{6})$""")
 
     @Volatile
     private var cache: List<Level>? = null
 
     fun all(context: Context): List<Level> =
         cache ?: context.assets.list(DIR).orEmpty().sorted().map { file ->
-            parse(context.assets.open("$DIR/$file").bufferedReader().readLines())
+            parse(file, context.assets.open("$DIR/$file").bufferedReader().readLines())
         }.also {
             require(it.isNotEmpty()) { "assets/$DIR contains no levels" }
             cache = it
         }
 
-    fun parse(lines: List<String>): Level {
-        val nameIndex = lines.indexOfFirst { it.isNotBlank() }
-        require(nameIndex >= 0) { "Level file is empty" }
-        val grid = lines.drop(nameIndex + 1).map { it.trim() }.filter { gridRow.matches(it) }
-        return Level(lines[nameIndex].trim(), grid)
+    fun parse(source: String, lines: List<String>): Level {
+        val content = lines.map { it.trim() }.filter { it.isNotEmpty() }
+        require(content.isNotEmpty()) { "$source: empty level file" }
+        val colors = mutableMapOf<Char, Int>()
+        val grid = mutableListOf<String>()
+        for (line in content.drop(1)) {
+            val def = colorDef.matchEntire(line)
+            if (def != null && grid.isEmpty()) {
+                val key = def.groupValues[1][0]
+                require(key != '.') { "$source: '.' is reserved for empty cells" }
+                colors[key] = (0xFF000000 or def.groupValues[2].toLong(16)).toInt()
+            } else {
+                val bad = line.firstOrNull { it != '.' && it != '#' && it !in colors }
+                require(bad == null) { "$source: undefined cell character '$bad' in \"$line\"" }
+                grid.add(line)
+            }
+        }
+        return Level(content[0], grid, colors)
     }
 }

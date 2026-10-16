@@ -14,7 +14,17 @@ from the releases page and sideload it. Google Play listing coming soon.
 - In-progress puzzles are saved when you leave them
 - Gallery mode: solved levels show their pixel art, unsolved stay "???"
 - Levels are plain ASCII data files: `app/src/main/assets/levels/NN_name.txt`
-  (line 1 = name, then '#'/'.' grid rows; file order = level order)
+  (file order = level order). Optional `CHAR=#RRGGBB` lines color the
+  picture revealed on solve and in the gallery; `#` uses the theme color:
+
+  ```
+  Strawberry
+  R=#E53935
+  G=#43A047
+  ...G..G...
+  ....GG....
+  .RRRRRRRR.
+  ```
 - No ads
 - Free
 - No dependencies beyond the Android SDK — plain Kotlin + custom Canvas view

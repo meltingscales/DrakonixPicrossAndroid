@@ -57,7 +57,7 @@ class GalleryActivity : Activity() {
         for (r in 0 until level.rows) for (c in 0 until level.cols) {
             src.setPixel(c, r, when {
                 !solved -> hidden
-                level.solution[r][c] -> palette.fg
+                level.solution[r][c] -> level.colorAt(r, c) ?: palette.fg
                 else -> back
             })
         }
